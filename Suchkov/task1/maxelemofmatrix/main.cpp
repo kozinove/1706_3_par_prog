@@ -43,7 +43,8 @@ int main(int argc, char* argv[])
 	int m, n;
 	int* receve_vector = nullptr;
 	int work_size = 0;
-	
+	int work_send = 0;
+
 	double time_start = 0;
 	double parall_time_work = 0;
 	double sequent_time_work = 0;
@@ -90,11 +91,7 @@ int main(int argc, char* argv[])
 				Matrix_vector[k] = Matrix[i][j];
 
 	}
-	work_size = (n * m) / proc_num;
-
-	receve_vector = new int[work_size + 3];
-	for (int i = 0; i < work_size + 3; i++)
-		receve_vector[i] = 0;
+	work_send = work_size = (n * m) / proc_num;
 
 	int* displs = new int[proc_num];
 	/*for (int i = 0; i < proc_num; i++)
@@ -105,19 +102,18 @@ int main(int argc, char* argv[])
 	{
 		sendcounts[i] = work_size;
 		displs[i] = (i * work_size);
-		if ((work_size % proc_num != 0) && (i == (proc_num - 1)))
-		{
-			sendcounts[i] = work_size + 1;
-			displs[i]++;
-		}
 	}
 
+	receve_vector = new int[work_send];
+	for (int i = 0; i < work_send; i++)
+		receve_vector[i] = 0;
+
+	MPI_Scatterv(Matrix_vector, sendcounts, displs, MPI_INT, receve_vector, work_send, MPI_INT, 0, MPI_COMM_WORLD);
+	
 	int* partial_sum_part = new int[work_size];
 	for (int i = 0; i < work_size; i++)
 		partial_sum_part[i] = 0;
 
-	MPI_Scatterv(Matrix_vector, sendcounts, displs, MPI_INT, receve_vector, work_size + 1, MPI_INT, 0, MPI_COMM_WORLD);
-	
 	for (int i = 0; i < work_size; i++)
 	{
 		partial_sum_part[proc_id] += receve_vector[i];
@@ -131,6 +127,10 @@ int main(int argc, char* argv[])
 	{
 		for (int i = 0; i < proc_num; i++)
 			parallel_sum += partial_sum[i];
+		if (m * n % 2 != 0 && proc_num % 2 == 0)
+		{
+			parallel_sum += Matrix_vector[m * n - 1];
+		}
 		parall_time_work = clock() - time_start;
 
 		cout << endl << "Sum of all elements in matrix is = " << parallel_sum << endl;
