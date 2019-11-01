@@ -24,32 +24,57 @@ int main(int argc, char* argv[])
 	MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
 	MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
 
-	if (argc < 4)
+	if (argc < 5)
 	{
 		if(ProcRank == 0)
 			cout << "NO ENOUGH ARGUMENTS, WILL BE USED SERVICE DATA" << endl;
+	}
+	if (argc > 5)
+	{
+		if (ProcRank == 0)
+			cout << "TOO MUCH ARGUMENTS, SOME WON`T BE USED" << endl;
 	}
 	
 	int* matrix        = nullptr;
 	int* sendCount     = nullptr;
 	int* resultVectorP = nullptr;  //Parallel   mult
 	int* resultVectorC = nullptr;  //Consistent mult
-	int n = 5;
+	int Cols = 5;
 	if (argc > 1)
-		n = atoi(argv[1]);
-	if (n < 0)
+	{ 
+		Cols = atoi(argv[1]);
+	}
+	int Rows = Cols;
+	if (argc > 2)
+	{
+		Rows = atoi(argv[2]);
+	}
+
+	if (Cols < 0)
 	{
 		if (ProcRank == 0)
-			cout << "ERROR DATA, WILL BE USED SIZE = |SIZE|" << endl;
-		n = abs(n);
+			cout << "ERROR DATA, WILL BE USED COLS = |COLS|" << endl;
+		Cols = abs(Cols);
 	}
-	else if (n == 0)
+	else if (Cols == 0)
 	{
 		if (ProcRank == 0)
-			cout << "ERROR DATA, WILL BE USED SIZE = 10" << endl;
-		n = 10;
+			cout << "ERROR DATA, WILL BE USED COLS = 5" << endl;
+		Cols = 5;
 	}
-	int* multVector   = new int[n];
+	if (Rows < 0)
+	{
+		if (ProcRank == 0)
+			cout << "ERROR DATA, WILL BE USED ROWS = |ROWS|" << endl;
+		Rows = abs(Rows);
+	}
+	else if (Rows == 0)
+	{
+		if (ProcRank == 0)
+			cout << "ERROR DATA, WILL BE USED ROWS = COLS" << endl;
+		Rows = Cols;
+	}
+	int* multVector   = new int[Cols];
 	int* displs       = new int[ProcNum];
 	int* recvCount    = new int[ProcNum];
 	int* gatherDispls = new int[ProcNum];
@@ -59,10 +84,10 @@ int main(int argc, char* argv[])
 	{
 		int Min = 0;
 		int Max = 9;
-		if (argc > 2)
-			Min  = atoi(argv[2]);
 		if (argc > 3)
-			Max  = atoi(argv[3]);
+			Min  = atoi(argv[3]);
+		if (argc > 5)
+			Max  = atoi(argv[4]);
 		if (Max == Min)
 		{
 			if (ProcRank == 0)
@@ -76,48 +101,53 @@ int main(int argc, char* argv[])
 				cout << "ERROR DATA, MIN AND MAX WILL BE SWAPPED" << endl;
 			swap(Min, Max);
 		}
-		cout << "USING DATA: " << endl << "Size = " << n << endl << "Min = " << Min << endl << "Max = " << Max << endl;
+		cout << "USING DATA: " << endl << "Cols = " << Cols << endl << "Rows = " << Rows << endl << "Min = " << Min << endl << "Max = " << Max << endl;
 
 	
 		srand(time(NULL));
-		matrix = new int[n * n];
+		matrix = new int[Cols * Rows];
 
-		for (int i = 0; i < n; i++)
+		for (int i = 0; i < Cols; i++)
 		{
 			multVector[i] = Min + rand() % (Max - Min + 1);
-			for (int j = 0; j < n; j++)
-				matrix[i * n + j] = Min + rand() % (Max - Min + 1);
+			for (int j = 0; j < Rows; j++)
+				matrix[i + j*Cols] = Min + rand() % (Max - Min + 1);
 		}	
 
-		for (int i = 0; i < n; i++)
+		cout << "Matrix: " << endl;
+		for (int i = 0; i < Rows; i++)
 		{
-			for (int j = 0; j < n; j++)
-				cout << matrix[i * n + j] << "   ";
-			cout << "    " << multVector[i] << endl;
+			for (int j = 0; j < Cols; j++)
+				cout << matrix[i * Cols + j] << "   ";
+			cout << endl;
 		}
+		cout << "Vector: " << endl;
+		for (int i = 0; i < Cols; i++)
+			cout << matrix[i] << endl;
+
 		cout << endl << "--------------------------------" << endl << endl;
 			
-		resultVectorC = new int[n];
-		for (int i = 0; i < n; i++)
+		resultVectorC = new int[Rows];
+		for (int i = 0; i < Rows; i++)
 			resultVectorC[i] = 0;
-		for (int i = 0; i < n; i++)
-			for (int j = 0; j < n; j++)
-				resultVectorC[i] += matrix[i * n + j] * multVector[j];      
+		for (int i = 0; i < Rows; i++)
+			for (int j = 0; j < Cols; j++)
+				resultVectorC[i] += matrix[i * Cols + j] * multVector[j];      
 			
-		resultVectorP = new int[n];
-		for (int i = 0; i < n; i++)
+		resultVectorP = new int[Rows];
+		for (int i = 0; i < Rows; i++)
 			resultVectorP[i] = 0;
 				
-		int startNum = n / ProcNum;
+		int startNum = Rows / ProcNum;
 		sendCount = new int[ProcNum];
 		for (int i = 0; i < ProcNum; i++)
 		{
-			sendCount[i] = startNum * n;
+			sendCount[i] = startNum * Cols; ////
 			displs[i] = 0;
 		}
-		border = n - startNum * ProcNum;
+		border = Rows - startNum * ProcNum;
 		for (int i = 0; i < border; i++)
-			sendCount[i] += n;
+			sendCount[i] += Cols; ////
 
 		boolSendCount[0] = sendCount[0];
 		boolSendCount[1] = sendCount[ProcNum - 1];
@@ -128,13 +158,13 @@ int main(int argc, char* argv[])
 		
 		for (int i = 0; i < ProcNum; i++)
 		{
-			recvCount[i] = sendCount[i] / n;
-			gatherDispls[i] = displs[i] / n;
+			recvCount[i] = sendCount[i] / Cols;
+			gatherDispls[i] = displs[i] / Cols;
 		}
 
 	}
 
-	MPI_Bcast(multVector,    n,       MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(multVector,    Cols,    MPI_INT, 0, MPI_COMM_WORLD);
 	MPI_Bcast(&border,       1,       MPI_INT, 0, MPI_COMM_WORLD);
 	MPI_Bcast(boolSendCount, 2,       MPI_INT, 0, MPI_COMM_WORLD);
 	MPI_Bcast(displs,        ProcNum, MPI_INT, 0, MPI_COMM_WORLD);
@@ -151,8 +181,9 @@ int main(int argc, char* argv[])
 	for (int i = 0; i < recvCount[ProcRank]; i++)
 		vectorElem[i] = 0;
 	for (int i = 0; i < recvCount[ProcRank]; i++)
-		for (int j = 0; j < n; j++)
-			vectorElem[i] += bufferM[i * n + j] * multVector[j];
+		for (int j = 0; j < Cols; j++)
+			vectorElem[i] += bufferM[i * Cols + j] * multVector[j];
+
 
 	MPI_Gatherv(vectorElem, recvCount[ProcRank], MPI_INT, resultVectorP, recvCount, gatherDispls, MPI_INT, 0, MPI_COMM_WORLD);
 
@@ -160,7 +191,7 @@ int main(int argc, char* argv[])
 	if (ProcRank == 0)
 	{
 		cout << "Result vector " << "                      " << "Difference vector" << endl;
-		for (int i = 0; i < n; i++)
+		for (int i = 0; i < Rows; i++)
 			cout << resultVectorP[i] << "                                " << resultVectorP[i] - resultVectorC[i] << endl;
 		
 		delete[] matrix;
