@@ -1,9 +1,6 @@
 #include <stdio.h>
 #include <mpi.h>
-#include <stdlib.h>
 #include <math.h>
-#include <malloc.h>
-#include <stdlib.h>
 #include <time.h>
 #include <iostream>
 
