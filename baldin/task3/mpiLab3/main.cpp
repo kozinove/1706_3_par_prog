@@ -94,7 +94,12 @@ void GenerateStartData(double* &Matrix, double*& rightVector ,const int &size, i
 				cout << "ERROR DATA, MIN AND MAX WILL BE SWAPPED" << endl;
 			swap(min, max);
 		}
-		cout << "USING DATA: " << endl << "Size = " << size << endl << "Approximate min = " << min << endl << "Approximate max = " << max << endl;
+		int dopIter = 0;
+		if (argc > 4)
+		{
+			dopIter = atoi(argv[4]);
+		}
+		cout << "USING DATA: " << endl << "Size = " << size << endl << "Approximate min = " << min << endl << "Approximate max = " << max << endl << "Additional iterations = " << dopIter << endl;;
 
 		for (int i = 0; i < size * size; i++)
 			Matrix[i] = 0;
@@ -277,12 +282,12 @@ void main(int argc, char* argv[])
 	MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
 	MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
 
-	if (argc < 4)
+	if (argc < 5)
 	{
 		if (ProcRank == 0)
 			cout << "NO ENOUGH ARGUMENTS, WILL BE USED SERVICE DATA" << endl;
 	}
-	if (argc > 5)
+	if (argc > 6)
 	{
 		if (ProcRank == 0)
 			cout << "TOO MUCH ARGUMENTS, SOME WON`T BE USED" << endl;
@@ -307,10 +312,12 @@ void main(int argc, char* argv[])
 			cout << "ERROR DATA, WILL BE USED SIZE = 5" << endl;
 		size = 5;
 	}
+
 	MPI_Group Working;
 	MPI_Comm_group(MPI_COMM_WORLD, &Working);
 
 	int workingP;
+
 	if (ProcNum > size)
 		workingP = size;
 	else workingP = ProcNum;
@@ -336,8 +343,10 @@ void main(int argc, char* argv[])
 	double startTime[3] = { 0 };
 	double finishTime[3] = { 0 };
 	double workTime[3] = { 0 };
+
 	if (ProcRank == 0)
 	{
+
 		cout << "----------------------" << endl;
 		resultG = new double[size];
 		for (int i = 0; i < size; i++)
@@ -432,8 +441,12 @@ void main(int argc, char* argv[])
 			r[i] = rightVector[i];
 			p[i] = r[i];
 		}
-		
-		while (iter < size)
+		int dopIter = 0;
+		if (argc > 4)
+		{
+			dopIter = atoi(argv[4]);
+		}
+		while (iter < size + dopIter)
 		{
 			tempScal = 0;
 			for (int i = 0; i < recvCount[ProcRank]; i++)
@@ -553,6 +566,7 @@ void main(int argc, char* argv[])
 			//MPI_Barrier(COMM_WORKING);
 
 		}
+		MPI_Barrier(COMM_WORKING);
 		finishTime[2] = MPI_Wtime();
 		workTime[2] = finishTime[2] - startTime[2];
 
