@@ -1,303 +1,192 @@
 ﻿#include <mpi.h>
 #include <iostream>
 #include <ctime>
-#include <random>
-#include <cstdlib>
-#include <time.h>
-#include <Windows.h>
-#include <queue>
-#include <iostream>
 
 using namespace std;
-int main(int argc, char** argv)
+
+int process_count = 0; //Кол-во процессов
+int cur_rank = 0;	   //Текущий процесс
+int* A = 0, * B = 0, * C = 0, * A1 = 0, * B1 = 0, * C1 = 0, * res; //Все матрицы
+int matrix_size = 0, block_size = 0;  //размер матрицы и блока
+//MPI_Comm GridComm, ColComm, RowComm; //Новые коммуникаторы
+MPI_Datatype MPI_BLOCK;  //Тип для пересылки блоков
+
+int iter = 0; //итерация
+
+//Инициализация матриц
+void initialize()
 {
-	srand(time(0));
-	int ProcNum, ProcRank;
-	MPI_Init(&argc, &argv);
-	MPI_Status status;
-
-	MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
-	MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
-
-	//Начало
-		//Чтение данных		
-		//Матрицы M x N (M - строк, N - столбцов)
-	int L = 3;
-	int N = 3;
-	int M = 3;
-
-	int min = 1;
-	int max = 9;
-
-	if (argc > 1)
-		L = atoi(argv[1]);
-	if (argc > 2)
-		M = atoi(argv[2]);
-	if (argc > 3)
-		N = atoi(argv[3]);
-
-	if (argc > 4)
-		min = atoi(argv[4]);
-	if (argc > 5)
-		max = atoi(argv[5]);
-
-	int sizeA = L * M;
-	int sizeB = M * N;
-	int sizeC = L * N;
-	float* ArrB = new float[sizeB];
-
-	MPI_Group UsingProcces;
-	MPI_Comm_group(MPI_COMM_WORLD, &UsingProcces);
-
-	int usingProcces;
-	if (ProcNum > sizeC)
-		usingProcces = sizeC;
-	else usingProcces = ProcNum;
-	int* ArrUsingProcces = new int[usingProcces];
-	for (int i = 0; i < usingProcces; i++)
+	block_size = matrix_size / process_count; //вычисление размера блока
+	//Выделение памяти на матрицы (полосы)
+	A1 = new int[block_size * matrix_size];
+	B1 = new int[block_size * matrix_size];
+	if (cur_rank == 0)
 	{
-		ArrUsingProcces[i] = i;
-	}
-	MPI_Group_incl(UsingProcces, usingProcces, ArrUsingProcces, &UsingProcces);
-	delete[] ArrUsingProcces;
-
-
-	MPI_Comm Using;
-	MPI_Comm_create(MPI_COMM_WORLD, UsingProcces, &Using);
-	MPI_Group_free(&UsingProcces);
-
-	ProcNum = usingProcces;
-
-	//нагругка на каждый поток
-	int* loadProcces = new int[ProcNum];
-	for (int rank = 0; rank < ProcNum; rank++)
-	{
-		loadProcces[rank] = sizeC / ProcNum;
-	}
-	for (int i = 0; i < sizeC % ProcNum; i++)
-	{
-		loadProcces[i] ++;
-	}
-
-
-	int* displs = new int[ProcNum];
-	displs[0] = 0;
-	for (int i = 1; i < ProcNum; i++)
-	{
-		displs[i] = loadProcces[i - 1] + displs[i - 1];
-	}
-
-
-	int* sizeScat = new int[ProcNum];
-	for (int i = 0; i < ProcNum; i++)
-	{
-		int sizeL = 1;
-		for (int j = 0; j < loadProcces[i]; j++)
-		{
-			if ((((displs[i] + j) % N) == (N - 1)) && (j + 1 < loadProcces[i]))
-				sizeL++;
-		}
-		sizeScat[i] = sizeL * M;
-	}
-
-	int* displsScat = new int[ProcNum];
-	displsScat[0] = 0;
-	for (int i = 1; i < ProcNum; i++)
-	{
-		displsScat[i] = displs[i] / N * M;
-	}
-
-	float* ArrBuff = new float[sizeScat[ProcRank]];
-	float* ArrResult = new float[loadProcces[ProcRank]];
-
-	int* ArrIndexB = new int[loadProcces[ProcRank]];
-	for (int i = 0; i < loadProcces[ProcRank]; i++)
-	{
-		ArrIndexB[i] = (displs[ProcRank] + i) % N;
-	}
-
-
-	//НУЛЕВОЙ
-	if (ProcRank == 0)
-	{
-		//Инициализация
-
-		float* ArrA = new float[sizeA];
-		float* ArrC = new float[sizeC];
-		float* ArrCC = new float[sizeC];
-
-		for (int i = 0; i < sizeA; i++)
-		{
-			ArrA[i] = rand() % (max - min + 1) + min;
-		}
-		for (int i = 0; i < sizeB; i++)
-		{
-			ArrB[i] = rand() % (max - min + 1) + min;
-		}
-		cout << "size matrixA " << sizeA << " (" << L << "x" << M << ") " << endl;
-		cout << "matrix A" << endl;
-		for (int i = 0; i < L; i++)
-		{
-			for (int j = 0; j < M; j++)
+		// задание элементов исходных матриц
+		srand(time(0));
+		A = new int[matrix_size * matrix_size];
+		B = new int[matrix_size * matrix_size];
+		C = new int[matrix_size * matrix_size];
+		res = new int[matrix_size * matrix_size];
+		//случайная генерация исходных матриц
+		for (int i = 0; i < matrix_size; ++i)
+			for (int j = 0; j < matrix_size; ++j)
 			{
-				cout << ArrA[i * M + j] << " ";
+				A[i * matrix_size + j] = rand() % 50;
+				B[i * matrix_size + j] = rand() % 50;
+				res[i * matrix_size + j] = 0;
 			}
-			cout << endl;
-		}
-		cout << endl;
-		cout << "size matrixB " << sizeB << " (" << M << "x" << N << ") " << endl;
-		cout << "matrix B" << endl;
-		for (int i = 0; i < M; i++)
-		{
-			for (int j = 0; j < N; j++)
-			{
-				cout << ArrB[i * N + j] << " ";
-			}
-			cout << endl;
-		}
-
-		//рассылка матрицы B
-		MPI_Bcast(ArrB, sizeB, MPI_FLOAT, 0, Using);
-
-		//расчёт нагрузки на процессы
-		// максимум sizeC операций и рассылкой N раз каждой из L строк матрицы A 
-
-
-		cout << endl;
-
-		cout << "rankC" << endl;
-		int rank = 0;
-		int counter = 0;
-
-		for (int j = 0; j < ProcNum; j++)
-		{
-			for (int i = 0; i < loadProcces[rank]; i++)
-			{
-				cout << rank << " ";
-				counter++;
-
-				if ((counter) % N == 0)
-					cout << endl;
-			}
-			rank++;
-		}
-		cout << endl;
-
-		//рассылка строк
-		MPI_Scatterv(ArrA, sizeScat, displsScat, MPI_FLOAT, ArrBuff, sizeScat[ProcRank], MPI_FLOAT, 0, Using);
-
-
-		int sizeStr = 0;
-		for (int i = 0; i < loadProcces[ProcRank]; i++)
-		{
-			ArrResult[i] = 0;
-			for (int j = 0; j < M; j++)
-			{
-				ArrResult[i] += ArrBuff[j + M * sizeStr] * ArrB[j * N + ArrIndexB[i]];    //Cij = summ(Aim*Bmj);
-				//cout << " ( " << j + M * sizeStr << " : " << j * N + ArrIndexB[i] << " ) ";
-			}
-			if ((((displs[ProcRank] + i) % N) == (N - 1)) && (i + 1 < loadProcces[ProcRank]))
-				sizeStr++;
-		}
-		//cout << endl;
-
-		// сборка
-		MPI_Gatherv(ArrResult, loadProcces[ProcRank], MPI_FLOAT, ArrC, loadProcces, displs, MPI_FLOAT, 0, Using);
-
-		//печать С
-
-
-		cout << "size matrixC " << sizeC << " (" << L << "x" << N << ") " << endl;
-		cout << "matrix C" << endl;
-		for (int i = 0; i < L; i++)
-		{
-			for (int j = 0; j < N; j++)
-			{
-				cout << ArrC[i * N + j] << " ";
-			}
-			cout << endl;
-		}
-
-		for (int i = 0; i < L; i++)
-		{
-			for (int j = 0; j < N; j++)
-			{
-				ArrCC[i * N + j] = 0;
-				for (int k = 0; k < M; k++)
-				{
-					ArrCC[i * N + j] += ArrA[i * M + k] * ArrB[k * N + j];
-				}
-			}
-		}
-
-		cout << "matrix CC" << endl;
-		for (int i = 0; i < L; i++)
-		{
-			for (int j = 0; j < N; j++)
-			{
-				cout << ArrCC[i * N + j] << " ";
-			}
-			cout << endl;
-		}
-
-		// clear
-		delete[] ArrA;
-		delete[] ArrC;
-
-		delete[] ArrCC;
+		C1 = C;
 	}
-	//работа других процессов
 	else
 	{
-		// получение матрицы B
-		MPI_Bcast(ArrB, sizeB, MPI_FLOAT, 0, Using);
-
-
-		//принятие строк
-		MPI_Scatterv(nullptr, sizeScat, displsScat, MPI_FLOAT, ArrBuff, sizeScat[ProcRank], MPI_FLOAT, 0, Using);
-
-
-		//cout << "Procces " << ProcRank <<" "<< sizeScat[ProcRank] << endl;
-
-		/*cout << "J " << endl;
-		for (int i = 0; i < loadProcces[ProcRank]; i++)
-		{
-			cout << " " << ArrIndexB[i];
-		}
-		cout << endl;
-*/
-
-		int sizeStr = 0;
-		for (int i = 0; i < loadProcces[ProcRank]; i++)
-		{
-			ArrResult[i] = 0;
-			for (int j = 0; j < M; j++)
-			{
-				ArrResult[i] += ArrBuff[j + M * sizeStr] * ArrB[j * N + ArrIndexB[i]];    //Cij = summ(Aim*Bmj);
-			}
-			if ((((displs[ProcRank] + i) % N) == (N - 1)) && (i + 1 < loadProcces[ProcRank]))
-				sizeStr++;
-		}
-
-		MPI_Gatherv(ArrResult, loadProcces[ProcRank], MPI_FLOAT, nullptr, loadProcces, displs, MPI_FLOAT, 0, Using);
-
+		C1 = new int[block_size * matrix_size];
 	}
+	//Обнуление C1
+	for (int i = 0; i < block_size * matrix_size; ++i)
+		C1[i] = 0;
+}
+//Последовательный алгоритм
+void serialMult()
+{
+	for (int i = 0; i < matrix_size; ++i)
+		for (int k = 0; k < matrix_size; ++k)
+			for (int j = 0; j < matrix_size; ++j)
+				res[i * matrix_size + j] += A[i * matrix_size + k] * B[k * matrix_size + j];
+}
+//Базовая рассылка матриц
+void matrixSending()
+{
+	MPI_Type_vector(matrix_size, block_size, matrix_size, MPI_INT, &MPI_BLOCK); //Блок матрицы
+	MPI_Type_commit(&MPI_BLOCK);
+	if (cur_rank == 0)
+	{
+		for (int r = 1; r < process_count; ++r)
+		{
+			//Отправка соответствующих блоков
+			MPI_Send(A + r * matrix_size * block_size, matrix_size * block_size, MPI_INT, r, 0, MPI_COMM_WORLD);
+			MPI_Send(B + r * block_size, 1, MPI_BLOCK, r, 0, MPI_COMM_WORLD);
+		}
+		for (int i = 0; i < block_size * matrix_size; ++i)
+			A1[i] = A[i];
+		for (int i = 0; i < matrix_size; ++i)
+			for (int j = 0; j < block_size; ++j)
+				B1[i * block_size + j] = B[i * matrix_size + j];
+	}
+	else
+	{
+		//Прием блоков
+		MPI_Status s;
+		MPI_Recv(A1, block_size * matrix_size, MPI_INT, 0, 0, MPI_COMM_WORLD, &s);
+		MPI_Recv(B1, block_size * matrix_size, MPI_INT, 0, 0, MPI_COMM_WORLD, &s);
+	}
+}
+//Перемножение блока B на  блок A
+void multA1_B1()
+{
+	//Циклы в оптимальной последовательности
+	for (int i = 0; i < block_size; ++i)
+		for (int k = 0; k < matrix_size; k++)
+			for (int j = 0; j < block_size; ++j)
+				C1[i * matrix_size + j + block_size * ((iter + cur_rank) % process_count)] += A1[i * matrix_size + k] * B1[k * block_size + j];
+}
+//Рассылка B1
+void B1_sending()
+{
+	MPI_Status s;
+	int next_proc = (cur_rank + 1) % process_count;
+	int prev_proc = (cur_rank + process_count - 1) % process_count;
+	MPI_Sendrecv_replace(B1, block_size * matrix_size, MPI_INT, prev_proc, 0, next_proc, 0, MPI_COMM_WORLD, &s);
+}
+//Умножение
+void mult()
+{
+	for (iter = 0; iter < process_count; ++iter)
+	{
+		multA1_B1();
+		if (iter < process_count - 1)
+			B1_sending();
+	}
+}
+//Сбор результатов
+void uniteResult()
+{
+	if (cur_rank == 0)
+	{
+		MPI_Status s;
+		for (int r = 1; r < process_count; ++r)
+		{
+			MPI_Recv(C + r * matrix_size * block_size, matrix_size * block_size, MPI_INT, r, 0, MPI_COMM_WORLD, &s);
+		}
+	}
+	else
+		MPI_Send(C1, block_size * matrix_size, MPI_INT, 0, 0, MPI_COMM_WORLD);
+}
+//Освобождение памяти
+void finalize()
+{
+	delete[] A1;
+	delete[] B1;
+	delete[] C1;
+	if (cur_rank == 0)
+	{
+		delete[] A;
+		delete[] B;
+		delete[] res;
+	}
+	MPI_Type_free(&MPI_BLOCK);
+}
 
-	//общая часть
-	delete[] sizeScat;
-	delete[] displsScat;
+int main(int argc, char** argv)
+{
+	double start_time, end_time;
+	if (argc > 1)
+		matrix_size = atoi(argv[1]);
+	else
+		matrix_size = 5;
+	//MPI
+	MPI_Init(&argc, &argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &process_count);
+	MPI_Comm_rank(MPI_COMM_WORLD, &cur_rank);
 
-	delete[] ArrIndexB;
-	delete[] ArrResult;
+	initialize();
+	if (cur_rank == 0)
+	{
+		start_time = MPI_Wtime();
+		serialMult();
+		end_time = MPI_Wtime();
+		cout << "Serial: " << end_time - start_time << endl;
+	}
+	start_time = MPI_Wtime();
+	matrixSending();
+	mult();
+	uniteResult();
+	if (cur_rank == 0)
+	{
+		end_time = MPI_Wtime();
+		cout << "Parallel: " << end_time - start_time << endl;
+		bool flag = true;
+		for (int i = 0; i < matrix_size * matrix_size; ++i)
+			flag = flag && (C[i] == res[i]);
+		if (flag)
+			cout << "equal" << endl;
+		else
+			cout << "is not equal" << endl;
+		//for (int i = 0; i < matrix_size; ++i)
+		//{
+		//	for (int j = 0; j < matrix_size; ++j)
+		//		cout << C[i*matrix_size + j] << " ";
+		//	cout << endl;
+		//}
+		//for (int i = 0; i < matrix_size; ++i)
+		//{
+		//	for (int j = 0; j < matrix_size; ++j)
+		//		cout << res[i*matrix_size + j] << " ";
+		//	cout << endl;
+		//}
+	}
+	finalize();
 
-	delete[] ArrB;
-	delete[] ArrBuff;
-
-	delete[]loadProcces;
-	delete[]displs;
-
-
-	MPI_Comm_free(&Using);
 	MPI_Finalize();
-
+	return 0;
 }
