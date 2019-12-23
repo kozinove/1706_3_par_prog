@@ -1,4 +1,4 @@
-﻿#include <mpi.h>
+#include <mpi.h>
 #include <iostream>
 #include <ctime>
 #include <time.h>
