@@ -1,6 +1,8 @@
 ﻿#include <mpi.h>
 #include <iostream>
 #include <ctime>
+#include <time.h>
+
 using namespace std;
 
 int ProcNum = 0;
@@ -12,14 +14,14 @@ MPI_Comm ColComm; // коммуникатор столбцов
 MPI_Comm RowComm; // коммуникатор строк
 
 void MatrixInit(double* MatrixA, double* MatrixB, int Size) {
-	
-		int i, j; // Loop variables
-		srand(unsigned(time(0)));
-		for (i = 0; i < Size; i++)
-			for (j = 0; j < Size; j++) {
-				MatrixA[i * Size + j] = rand() / double(1000);
-				MatrixB[i * Size + j] = rand() / double(1000);
-			}
+
+	int i, j; // Loop variables
+	srand(unsigned(time(0)));
+	for (i = 0; i < Size; i++)
+		for (j = 0; j < Size; j++) {
+			MatrixA[i * Size + j] = rand() / double(10000);
+			MatrixB[i * Size + j] = rand() / double(10000);
+		}
 }
 
 void PrintMatrix(double* Matrix, int Size)
@@ -142,23 +144,41 @@ void DataDistribution(double* MatrixA, double* MatrixB, double* TempBlock, doubl
 	GridMatrixScatter(MatrixB, BlockB, Size, BlockSize);
 }
 
-// функция инициализации памяти и данных
-void ProcessInitialization(double*& MatrixA, double*& MatrixB, double*& MatrixC, double*& BlockA, double*& BlockB, double*& BlockC, double*& pTemporaryAblock, int& Size, int& BlockSize) {
-		MPI_Bcast(&Size, 1, MPI_INT, 0, MPI_COMM_WORLD);
-		BlockSize = Size / GridSize;
-		BlockA = new double[BlockSize * BlockSize];
-		BlockB = new double[BlockSize * BlockSize];
-		BlockC = new double[BlockSize * BlockSize];
-		pTemporaryAblock = new double[BlockSize * BlockSize];
-		for (int i = 0; i < BlockSize * BlockSize; i++) {
-			BlockC[i] = 0;
-		}
-		if (ProcRank == 0) {
-			MatrixA = new double[Size * Size];
-			MatrixB = new double[Size * Size];
-			MatrixC = new double[Size * Size];
-			MatrixInit(MatrixA, MatrixB, Size);
-		}
+// Функция для выделения памяти и инициализации исходных данных
+void ProcessInitialization(double*& pAMatrix, double*& pBMatrix, double*& pCMatrix, double*& pAblock, double*& pBblock, double*& pCblock, double*& pTemporaryAblock, int& Size, int& BlockSize) {
+	int negative = 1;
+	if (ProcRank == 0) {
+		do {
+			cout << "\nEnter size of matrix" << endl;
+			cin >> Size;
+
+			if (Size % GridSize != 0) {
+				cout << "Matrix size must be a multiple of grid size!" << endl;
+			}
+			if (Size <= 0) {
+				cout << "Matrix size can't be negative." << endl;
+				negative = 0;
+			}
+		} while ((Size % GridSize != 0) || (Size<=0));
+	}
+	MPI_Bcast(&Size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+	BlockSize = Size / GridSize;
+
+	pAblock = new double[BlockSize * BlockSize];
+	pBblock = new double[BlockSize * BlockSize];
+	pCblock = new double[BlockSize * BlockSize];
+	pTemporaryAblock = new double[BlockSize * BlockSize];
+
+	for (int i = 0; i < BlockSize * BlockSize; i++) {
+		pCblock[i] = 0;
+	}
+	if (ProcRank == 0) {
+		pAMatrix = new double[Size * Size];
+		pBMatrix = new double[Size * Size];
+		pCMatrix = new double[Size * Size];
+		MatrixInit(pAMatrix, pBMatrix, Size);
+	}
 }
 
 /*функция создает коммуникатор в виде двумерной квадратной решетки, определяет координаты каждого процесса в этой решетке*/
@@ -185,17 +205,34 @@ void CreateGridCommunicators() {
 	MPI_Cart_sub(GridComm, Subdims, &ColComm);
 }
 
+void ProcessTermination(double* MatrixA, double* MatrixB, double* MatrixC, double* BlockA, double* BlockB, double* BlockC, double* TempBlock) {
+	if (ProcRank == 0) {
+		delete[] MatrixA;
+		delete[] MatrixB;
+		delete[] MatrixC;
+	}
+	delete[] BlockA;
+	delete[] BlockB;
+	delete[] BlockC;
+	delete[] TempBlock;
+}
+
 void main(int argc, char* argv[]) {
-	double* MatrixA; 
-	double* MatrixB; 
-	double* MatrixC; 
-	int Size = 4; 
-	int BlockSize; 
-	double* BlockA; 
-	double* BlockB; 
-	double* BlockC; 
+	double* MatrixA;
+	double* MatrixB;
+	double* MatrixC;
+	int Size = 4;
+	int BlockSize;
+	double* BlockA;
+	double* BlockB;
+	double* BlockC;
 	double* TempBlock;
 	double Start, Finish, Duration;
+	clock_t start;
+	clock_t end;
+	clock_t start_single;
+	clock_t end_single;
+
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
 	MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
@@ -206,43 +243,52 @@ void main(int argc, char* argv[]) {
 		}
 	}
 	else {
-		if (ProcRank == 0) {
-			printf("Parallel matrix multiplication program\n");
-		}
 		// создание процессорной сетки
 		CreateGridCommunicators();
 		// выделение памяти и инициализация матриц
 		ProcessInitialization(MatrixA, MatrixB, MatrixC, BlockA, BlockB, BlockC, TempBlock, Size, BlockSize);
-		if (ProcRank == 0) {
-			cout << "Matrix A:" << endl;
-			PrintMatrix(MatrixA, Size);
-		}
 
-		if (ProcRank == 0) {
-			cout << "Matrix B:" << endl;
-			PrintMatrix(MatrixB, Size);
-		}
-
+		if (ProcRank == 0) start = clock();
 		DataDistribution(MatrixA, MatrixB, TempBlock, BlockB, Size, BlockSize);
 		CalcParallelResult(BlockA, TempBlock, BlockB, BlockC, BlockSize);
 		ResultCollection(MatrixC, BlockC, Size, BlockSize);
+		if (ProcRank == 0)  end = clock();
 
 		if (ProcRank == 0) {
-			cout << "Matrix C:" << endl;
-			PrintMatrix(MatrixC, Size);
-		}
+			int k = 1;
+			double temp = 0;
+			double* TempMatrix = new double[Size * Size];
+			for (int i = 0; i < Size * Size; i++) {
+				TempMatrix[i] = 0;
+			}
+			start_single = clock();
+			for (int i = 0; i < Size; i++) {
+				for (int j = 0; j < Size; j++) {
+					temp = 0;
+					for (int k = 0; k < Size; k++)
+						temp += MatrixA[i * Size + k] * MatrixB[k * Size + j];
+					TempMatrix[i * Size + j] += temp;
+				}
+			}
+			for (int i = 0; i < Size * Size; i++) {
+				if (TempMatrix[i] != MatrixC[i]) {
+					k = 0;
+				}
+			}
+			end_single = clock();
+			if (k == 1) cout << "Calculations are correct" << endl;
+			else cout << "Calculations are correct" << endl; }
 		if (ProcRank == 0) {
-			if (CorrectCalc(MatrixA, MatrixB, MatrixC, Size) == 1)
-				cout << "Calculations are correct" << endl;
-			else cout << "Calculations are correct" << endl;
-		}
-		if (ProcRank == 0) {
-			delete[]MatrixA;
-			delete[]MatrixB;
-			delete[]MatrixC;
-			delete[]BlockA;
-			delete[]BlockB;
-			delete[]BlockC;
+			double seconds_single = (double)(end_single - start_single) / CLOCKS_PER_SEC;
+			std::cout << "The time of single process: " << seconds_single << " seconds." << std::endl;
+			double seconds = (double)(end - start) / CLOCKS_PER_SEC;
+			std::cout << "The time of " << ProcNum << " processes: " << seconds << " seconds." << std::endl;
+
+			std::cout << std::endl << "Result: " << seconds_single / seconds << "x acceleration" << std::endl;
+
+
+			ProcessTermination(MatrixA, MatrixB, MatrixC, BlockA, BlockB, BlockC,
+				TempBlock);
 		}
 	}
 	MPI_Finalize();
