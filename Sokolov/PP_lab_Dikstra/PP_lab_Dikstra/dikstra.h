@@ -8,7 +8,10 @@
 #include <vector>
 
 #include <omp.h>
+#include <tbb/task_scheduler_init.h>
+#include <tbb/parallel_for.h>
 
+using namespace tbb;
 
 #define dataType int
 #define NO_EBGE 0
@@ -35,3 +38,6 @@ int dikstra(dataType** Gragh, dataType* Rez, int size);
 
 // алгоритм Дейкстры на основе кучи c использованием openMP
 int dikstraMP(dataType** Gragh, dataType* Rez, int size);
+
+// алгоритм Дейкстры на основе кучи c использованием TBB
+int dikstraTBB(dataType** Gragh, dataType* Rez, int size);
