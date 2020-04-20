@@ -1,6 +1,7 @@
 #include<omp.h>
 #include <iostream>
-#include <time.h>
+#include<math.h>
+
 
 using namespace std;
 //создаем матрицы
@@ -201,7 +202,7 @@ double* Str_alg(double* matrix1, double* matrix2, int N, int threshold)
 	return Rez;
 }
 // OMP алгоритм Штрассена
-double* Shtr_alg_omp(double* matrix1, double* matrix2, int N, int threshold)
+double* Str_alg_omp(double* matrix1, double* matrix2, int N, int threshold)
 {
 	double* Rez;
 
@@ -215,12 +216,14 @@ double* Shtr_alg_omp(double* matrix1, double* matrix2, int N, int threshold)
 		double* B[4];
 		double* C[4];
 		double* P[7];
+		double* TMP1; double* TMP2; double* TMP3; double* TMP4; double* TMP5;
+		double* TMP6; double* TMP7; double* TMP8; double* TMP9; double* TMP10;
 
 		for (int i = 0; i < 4; i++) {
 			A[i] = CreateMatrix(N);
 			B[i] = CreateMatrix(N);
 		}
-#pragma omp parallel
+#pragma omp parallel 
 		{
 			int i, j;
 // распараллеливаем цикл for
@@ -242,54 +245,45 @@ double* Shtr_alg_omp(double* matrix1, double* matrix2, int N, int threshold)
 			// одна секция выполняется одним потоком
 #pragma omp sections 
 			{
-double* TMP = Add(A[0], A[3], N);
-					double* _TMP = Add(B[0], B[3], N);
+
 #pragma omp section
 				{
 					
-					P[0] = Simple_Mmult(TMP, _TMP, N);
-					delete[] TMP;
-					delete[] _TMP;
+					TMP1 = Add(A[0], A[3], N);
+					TMP2 = Add(B[0], B[3], N);
+					P[0] = Str_alg(TMP1, TMP2, N, threshold);
 				}
 #pragma omp section
 				{
-					TMP = Add(A[2], A[3], N);
-					P[1] = Simple_Mmult(TMP, B[0], N);
-					delete[] TMP;
+					TMP3 = Add(A[2], A[3], N);
+					P[1] = Str_alg(TMP3, B[0], N, threshold);
 				}
 #pragma omp section
 				{
-					TMP = Sub(B[1], B[3], N);
-					P[2] = Simple_Mmult(A[0], TMP, N);
-					delete[] TMP;
+					TMP4 = Sub(B[1], B[3], N);
+					P[2] = Str_alg(A[0], TMP4, N, threshold);
 				}
 #pragma omp section
 				{
-					TMP = Sub(B[2], B[0], N);
-					P[3] = Simple_Mmult(A[3], TMP, N);
-					delete[] TMP;
+					TMP5 = Sub(B[2], B[0], N);
+					P[3] = Str_alg(A[3], TMP5, N, threshold);
 				}
 #pragma omp section
 				{
-					TMP = Add(A[0], A[1], N);
-					P[4] = Simple_Mmult(TMP, B[3], N);
-					delete[] TMP;
+					TMP6 = Add(A[0], A[1], N);
+					P[4] = Str_alg(TMP6, B[3], N, threshold);
 				}
 #pragma omp section
 				{
-					TMP = Sub(A[2], A[0], N);
-					_TMP = Add(B[0], B[1], N);
-					P[5] = Simple_Mmult(TMP, _TMP, N);
-					delete[] TMP;
-					delete[] _TMP;
+					TMP7 = Sub(A[2], A[0], N);
+					TMP8 = Add(B[0], B[1], N);
+					P[5] = Str_alg(TMP7, TMP8, N, threshold);
 				}
 #pragma omp section
 				{
-					TMP = Sub(A[1], A[3], N);
-					_TMP = Add(B[2], B[3], N);
-					P[6] = Simple_Mmult(TMP, _TMP, N);
-					delete[] TMP;
-					delete[] _TMP;
+					TMP9 = Sub(A[1], A[3], N);
+					TMP10 = Add(B[2], B[3], N);
+					P[6] = Str_alg(TMP9, TMP10, N, threshold);
 				}
 			}
 			// одна секция выполняется одним потоком
@@ -327,7 +321,8 @@ double* TMP = Add(A[0], A[3], N);
 		for (int i = 0; i < 7; i++) {
 			delete[] P[i];
 		}
-
+		delete[]TMP1; delete[]TMP2; delete[]TMP3; delete[]TMP4; delete[]TMP5;
+		delete[]TMP6; delete[]TMP7; delete[]TMP8; delete[]TMP9; delete[]TMP10;
 
 	}
 
@@ -346,7 +341,6 @@ int main()
 	int k = 9;
 	double StartStrAlg2 = 0;// время старта последовательного обычного алгоритма 
 	double TimeStrAlg2 = 0;// время, затраченное на работу обычной версии алгоритма
-	double EndOmpAlg = 0;// Время окончания omp алгоритма
 	double StartOmpAlg = 0;// Время старта omp алгоритма
 	double TimeOmpAlg = 0;// Время,затраченно на работу omp алгоритма
 
@@ -360,31 +354,30 @@ int main()
 	Null(matr_A, matr_B, N);
 
 // обычный алгоритм
-	StartStrAlg2 = clock();
+	StartStrAlg2 = omp_get_wtime();
 
 	matr_Rez_Str2 = Simple_Mmult(matr_A, matr_B, N);
 
-	TimeStrAlg2 = clock() - StartStrAlg2;
+	TimeStrAlg2 = omp_get_wtime() - StartStrAlg2;
 
 	cout << "Usually linear:" << TimeStrAlg2 << endl;
 
 	// последовательный алгоритм 
-	StartStrAlg = clock();
+	StartStrAlg = omp_get_wtime();
 
 	matr_Rez_Str = Str_alg(matr_A, matr_B, N, thr);
 
-	TimeStrAlg = clock() - StartStrAlg;
+	TimeStrAlg = omp_get_wtime() - StartStrAlg;
 
 	cout << "Strassen linear:" << TimeStrAlg << endl;
 
 	// omp алгоритм
 	StartOmpAlg = omp_get_wtime();
 
-	matr_Rez_Omp = Shtr_alg_omp(matr_A, matr_B, N, thr);
+	matr_Rez_Omp = Str_alg_omp(matr_A, matr_B, N, thr);
 
-	EndOmpAlg = omp_get_wtime();
 
-	TimeOmpAlg = EndOmpAlg - StartOmpAlg;
+	TimeOmpAlg = omp_get_wtime() - StartOmpAlg;
 
 	cout << "Strassen OpenMp:" << TimeOmpAlg << endl;
 
