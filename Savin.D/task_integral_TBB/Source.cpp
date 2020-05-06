@@ -108,22 +108,6 @@ double calc_integral_tbb(double x1, double x2, double y1, double y2, int nx, int
 	return sum;
 }
 
-double calc_integral_tbb1(double x1, double x2, double y1, double y2, int nx, int ny) {
-	double dx = (x2 - x1) / nx;
-	double sum = 0;
-	return (parallel_for(blocked_range<int>(0, nx),
-		[&](const blocked_range<int>& r, double sum1 = 0)
-		{
-			for (int ix = r.begin(); ix != r.end(); ++ix)
-			{
-				double x = x1 + ix * dx + dx * .5; // central
-				double integral_1D = calc_integral_1D(x, y1, y2, ny);
-				sum1 += integral_1D * dx;
-			}
-			return sum1;
-		}
-	));
-}
 
 int main(int argc, char** argv) {
 
