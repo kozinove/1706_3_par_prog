@@ -208,7 +208,6 @@ int main(int argc, char* argv[])
 
 		for (size_t i = 0; i < numtasks / 2; i++)
 		{
-			sorted_parts[i].array = new int[part_size * 2];
 			sorted_parts[i].size = part_size * 2;
 		}
 		if (numtasks % 2)
@@ -305,7 +304,6 @@ int* parallel_merge(int numtasks, part* parts)
 
 	for (size_t i = 0; i < numtasks / 2; i++)
 	{
-		sorted_parts[i].array = new int[part_size * 2];
 		sorted_parts[i].size = part_size * 2;
 	}
 	if (numtasks % 2)
