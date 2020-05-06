@@ -262,61 +262,45 @@ int main(int argc, char* argv[])
 	int	ProcRank = 0;
 	int n = 10000;
 
-
-	//MPI_Init(&argc, &argv);
-	//MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
-	//MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
 	Initialize_from_Command_line(argc, argv, &n, &num_threads);
 
-	//if (ProcRank == MainProcess)
-	//{
-	    time(&time_start);
-		sequentTimeWork = Simpson2(&func, 1, 2, 2, 3, n);
-		time(&time_end);
-		std::cout.setf(std::ios::fixed);
-		std::cout.precision(15);
-		std::cout << "\n ******  Simpson Multi-Dimensional Integration ******";
-		std::cout << "\n ****** " << "num_processes/num_threads = " << ProcNum << " / " << num_threads << " ******";
-		std::cout << "\n ****** " << "num_iterations = " << n << " ******\n";
-
-		std::cout << "\nSimpson integrate = " << Serial_result << std::endl;
-		std::cout.precision(6);
-		std::cout << " time = " << sequentTimeWork << "ms\n ***************************";
-	//}
+	time(&time_start);
+	sequentTimeWork = Simpson2(&func, 1, 2, 2, 3, n);
+	time(&time_end);
+	std::cout.setf(std::ios::fixed);
+	std::cout.precision(15);
+	std::cout << "\n ******  Simpson Multi-Dimensional Integration ******";
+	std::cout << "\n ****** " << "num_processes/num_threads = " << ProcNum << " / " << num_threads << " ******";
+	std::cout << "\n ****** " << "num_iterations = " << n << " ******\n";
+	std::cout << "\nSimpson integrate = " << Serial_result << std::endl;
+	std::cout.precision(6);
+	std::cout << " time = " << sequentTimeWork << "ms\n ***************************";
 	time_start = clock();  //time(&time_start);
 	Parallel_result = Simpson2_TBB_parallel(&func, 1, 2, 2, 3, n);
 	time_end = clock();  //time(&time_end);
 	parallTimeWork = (time_end - time_start);
-	//if (ProcRank == MainProcess)
-	//{
+
 	std::cout << "\n ******  TBB  ******";
-		std::cout.precision(15);
-		std::cout << "\nSimpson integrate = " << Parallel_result;
-		std::cout.precision(6);
-		if (Test(Serial_result, Parallel_result))
-			std::cout << " time = " << parallTimeWork << "ms\n ***************************";
-
-		CheckResults(sequentTimeWork, parallTimeWork);
-		std::cout << "\n ***************************\n";
-	//}
-
-		time_start = clock();//time(&time_start); 
-		Parallel_result = Simpson2_OMP_parallel(&func, 1, 2, 2, 3, n);
-		time_end = clock(); // time(&time_end);
-		parallTimeWork = (time_end - time_start);
-		//if (ProcRank == MainProcess)
-		//{
-		std::cout << "\n ******  OpenMP  ******";
-		std::cout.precision(15);
-		std::cout << "\nSimpson integrate = " << Parallel_result;
-		std::cout.precision(6);
-		if (Test(Serial_result, Parallel_result))
-			std::cout << " time = " << parallTimeWork << "ms\n ***************************";
-
-		CheckResults(sequentTimeWork, parallTimeWork);
-		std::cout << "\n ***************************\n";
-		//}
-
-	//MPI_Finalize();
+	std::cout.precision(15);
+	std::cout << "\nSimpson integrate = " << Parallel_result;
+	std::cout.precision(6);
+	if (Test(Serial_result, Parallel_result))
+		std::cout << " time = " << parallTimeWork << "ms\n ***************************";
+	CheckResults(sequentTimeWork, parallTimeWork);
+	std::cout << "\n ***************************\n";
+	
+	time_start = clock();//time(&time_start); 
+	Parallel_result = Simpson2_OMP_parallel(&func, 1, 2, 2, 3, n);
+	time_end = clock(); // time(&time_end);
+	parallTimeWork = (time_end - time_start);
+	std::cout << "\n ******  OpenMP  ******";
+	std::cout.precision(15);
+	std::cout << "\nSimpson integrate = " << Parallel_result;
+	std::cout.precision(6);
+	if (Test(Serial_result, Parallel_result))
+		std::cout << " time = " << parallTimeWork << "ms\n ***************************";
+	CheckResults(sequentTimeWork, parallTimeWork);
+	std::cout << "\n ***************************\n";
+	
 	return 0;
 }
