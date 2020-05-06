@@ -193,12 +193,8 @@ public:
 	}
 };
 
-int mergeN = 0;
-
 int* parallel_merge(int numtasks, part* parts)
 {
-	mergeN++;
-	cout << "merge# " << mergeN << "numtasks" << numtasks << endl;
 	if (numtasks == 2)
 	{
 		return merge(parts[0].array, parts[1].array, parts[0].size, parts[1].size);
@@ -219,7 +215,6 @@ int* parallel_merge(int numtasks, part* parts)
 
 	for (size_t i = 0; i < numtasks / 2; i++)
 	{
-		sorted_parts[i].array = new int[part_size * 2];
 		sorted_parts[i].size = part_size * 2;
 	}
 	if (numtasks % 2)
@@ -359,7 +354,6 @@ int main()
 
 		for (size_t i = 0; i < numtasks / 2; i++)
 		{
-			sorted_parts[i].array = new int[part_size * 2];
 			sorted_parts[i].size = part_size * 2;
 		}
 		if (numtasks % 2)
@@ -396,7 +390,6 @@ int main()
 	bool same = true;
 	for (size_t i = 0; i < size; i++)
 	{
-		//cout << result_array[i] << endl;
 		if (sorted_start_array[i] != result_array[i])
 		{
 			same = false;
