@@ -11,12 +11,8 @@ struct part
 	unsigned size;
 };
 
-int* merge(int* a, int* b, int n, int m)
+void merge(int* c, int* a, int* b, int n, int m)
 {
-	int* c;
-	int size = n + m;
-	c = new int[size];
-
 	int i = 0, j = 0, k = 0;
 
 	while (i < n && j < m)
@@ -45,12 +41,6 @@ int* merge(int* a, int* b, int n, int m)
 		k++;
 		j++;
 	}
-	return c;
-}
-
-void ref_merge(int*& c, int* a, int* b, int n, int m)
-{
-	c = merge(a, b, n, m);
 }
 
 void swap(int* a, int* b)
@@ -136,6 +126,8 @@ int main(int argc, char* argv[])
 	if (remainder)
 		remainder_array = new int[remainder];
 
+	result_array = new int[size + remainder];
+
 	int i = 0;
 
 	for (; i < size; i++)
@@ -179,20 +171,37 @@ int main(int argc, char* argv[])
 	{
 		if (remainder)
 		{
-			result_array = merge(remainder_array, merge(parts[0], parts[1], part_size, part_size), remainder, size);
+			int* tmp_array = new int[part_size * 2];
+			merge(tmp_array, parts[0], parts[1], part_size, part_size);
+			merge(result_array, remainder_array, tmp_array, remainder, size);
 			size += remainder;
+			delete[] tmp_array;
 		}
-		else result_array = merge(parts[0], parts[1], part_size, part_size);
+		else
+		{
+			merge(result_array, parts[0], parts[1], part_size, part_size);
+		}
 	}
 	else if (numtasks == 3)
 	{
 		if (remainder)
 		{
-			result_array = merge(remainder_array, merge(parts[2], merge(parts[0], parts[1], part_size, part_size),
-				part_size, part_size + part_size), remainder, size);
+			int* tmp_array1 = new int[part_size * 2];
+			int* tmp_array2 = new int[part_size * 3];
+			merge(tmp_array1, parts[0], parts[1], part_size, part_size);
+			merge(tmp_array2, parts[2], tmp_array1, part_size, part_size + part_size);
+			merge(result_array, remainder_array, tmp_array2, remainder, size);
 			size += remainder;
+			delete[] tmp_array1;
+			delete[] tmp_array2;
 		}
-		else result_array = merge(parts[2], merge(parts[0], parts[1], part_size, part_size), part_size, part_size + part_size);
+		else
+		{
+			int* tmp_array = new int[part_size * 2];
+			merge(tmp_array, parts[0], parts[1], part_size, part_size);
+			merge(result_array, parts[2], tmp_array, part_size, part_size + part_size);
+			delete[] tmp_array;
+		}
 	}
 	else if (numtasks < 2)
 	{
@@ -226,7 +235,8 @@ int main(int argc, char* argv[])
 		for (size_t i = 0; i < _current_parts; i++)
 		{
 			int part_id = ((i + 1) * 2) - 1;
-			threads.push_back(thread(ref_merge, ref(sorted_parts[i].array), ref(parts[part_id]), ref(parts[part_id - 1]), part_size, part_size));
+			sorted_parts[i].array = new int[part_size * 2];
+			threads.push_back(thread(merge, ref(sorted_parts[i].array), ref(parts[part_id]), ref(parts[part_id - 1]), part_size, part_size));
 		}
 
 		for (size_t i = 0; i < _current_parts; i++)
@@ -243,7 +253,7 @@ int main(int argc, char* argv[])
 		delete[] parts;
 		if (remainder)
 		{
-			result_array = merge(remainder_array, parallel_merge(current_parts, sorted_parts), remainder, size);
+			merge(result_array, remainder_array, parallel_merge(current_parts, sorted_parts), remainder, size);
 			size += remainder;
 		}
 		else result_array = parallel_merge(current_parts, sorted_parts);
@@ -286,12 +296,18 @@ int* parallel_merge(int numtasks, part* parts)
 {
 	if (numtasks == 2)
 	{
-		return merge(parts[0].array, parts[1].array, parts[0].size, parts[1].size);
+		int* result_array = new int[parts[0].size + parts[1].size];
+		merge(result_array, parts[0].array, parts[1].array, parts[0].size, parts[1].size);
+		return result_array;
 	}
 	else if (numtasks == 3)
 	{
-		return merge(parts[2].array, merge(parts[0].array, parts[1].array, parts[0].size, parts[1].size),
-			parts[2].size, parts[0].size + parts[1].size);
+		int* tmp_array = new int[parts[0].size + parts[1].size];
+		int* result_array = new int[parts[0].size + parts[1].size + parts[2].size];
+		merge(tmp_array, parts[0].array, parts[1].array, parts[0].size, parts[1].size);
+		merge(result_array, parts[2].array, tmp_array, parts[2].size, parts[0].size + parts[1].size);
+		delete[] tmp_array;
+		return result_array;
 	}
 	else if (numtasks < 2) return nullptr;
 
@@ -304,7 +320,9 @@ int* parallel_merge(int numtasks, part* parts)
 
 	for (size_t i = 0; i < numtasks / 2; i++)
 	{
-		sorted_parts[i].size = part_size * 2;
+		int part_id = ((i + 1) * 2) - 1;
+		sorted_parts[i].size = parts[part_id].size + parts[part_id - 1].size;
+		sorted_parts[i].array = new int[sorted_parts[i].size];
 	}
 	if (numtasks % 2)
 	{
@@ -325,7 +343,7 @@ int* parallel_merge(int numtasks, part* parts)
 	for (size_t i = 0; i < _current_parts; i++)
 	{
 		int part_id = ((i + 1) * 2) - 1;
-		threads.push_back(thread(ref_merge, ref(sorted_parts[i].array), ref(parts[part_id].array), ref(parts[part_id - 1].array), parts[part_id].size, parts[part_id - 1].size));
+		threads.push_back(thread(merge, ref(sorted_parts[i].array), ref(parts[part_id].array), ref(parts[part_id - 1].array), parts[part_id].size, parts[part_id - 1].size));
 	}
 
 	
