@@ -4,8 +4,6 @@
 #include <vector>
 using namespace std;
 
-vector<int>c;
-
 void ShellSort(vector<int>& A, int n)
 {
     int i, j, d;
@@ -34,11 +32,8 @@ bool correctCheck(vector<int> A, vector<int> B) {
     return true;
 }
 
-vector<int> merge(vector<int> a, vector<int> b, vector<int> c, int n, int m)
+void merge(vector<int>& c, vector<int>& a, vector<int>& b, int n, int m)
 {
-
-    int size = n + m;
-    c.resize(size);
 
     int i = 0, j = 0, k = 0;
 
@@ -68,14 +63,17 @@ vector<int> merge(vector<int> a, vector<int> b, vector<int> c, int n, int m)
         k++;
         j++;
     }
-    return c;
+
 }
 
 vector<int> recursiveMerge(int numOfThreads, vector<vector<int>>& part) {
 
+    
     if (numOfThreads == 2)
     {
-        return merge(part[0], part[1], c, part[0].size(), part[1].size());
+        vector<int>tempVector(part[0].size()+part[1].size());
+        merge(tempVector, part[0], part[1], part[0].size(), part[1].size());
+        return tempVector;
     }
     else if (numOfThreads < 2) return part[0];
 
@@ -84,7 +82,8 @@ vector<int> recursiveMerge(int numOfThreads, vector<vector<int>>& part) {
     int partSize = part[0].size();
 
     for (int i = 0; i < numOfThreads / 2; i++) {
-        sortedParts[i].resize(part[0].size() * 2);
+        int partNum = i + 1;
+        sortedParts[i].resize(part[(partNum * 2) - 1].size() + part[(partNum * 2) - 2].size());
     }
 
     omp_set_num_threads(parts);
@@ -92,8 +91,11 @@ vector<int> recursiveMerge(int numOfThreads, vector<vector<int>>& part) {
     {
         int threadNum = omp_get_thread_num();
         int partNum = threadNum + 1;
-        sortedParts[threadNum] = merge(part[(partNum * 2) - 1], part[(partNum * 2) - 2], c, part[(partNum * 2) - 1].size(), part[(partNum * 2) - 2].size());
+        merge(sortedParts[threadNum], part[(partNum * 2) - 1], part[(partNum * 2) - 2], part[(partNum * 2) - 1].size(), part[(partNum * 2) - 2].size());
     }
+    //for (int i = 0; i < numOfThreads; i++) {
+    //    part[i].erase(0, size);
+    //}
 
     return recursiveMerge(parts, sortedParts);
 }
@@ -112,7 +114,7 @@ int main(int argc, char* argv[])
     double linearTime;
     int numOfThreads;
     int size;
-    
+
     cout << "Enter array size:";
     cin >> size;
     cout << "Enter number of threads:";
@@ -165,7 +167,7 @@ int main(int argc, char* argv[])
 
 
     mainFinalVector = recursiveMerge(numOfThreads, threadVector);
-    if (remain) mainFinalVector = merge(mainFinalVector, remainVector, c, mainFinalVector.size(), remain);
+    if (remain) merge(mainFinalVector, mainFinalVector, remainVector, mainFinalVector.size(), remain);
     endParallel = omp_get_wtime();
     parallelTime = endParallel - startParallel;
     cout << "Parallel time: " << parallelTime << endl << endl;
