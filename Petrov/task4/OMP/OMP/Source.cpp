@@ -4,6 +4,8 @@
 #include <vector>
 using namespace std;
 
+vector<int>c;
+
 void ShellSort(vector<int>& A, int n)
 {
     int i, j, d;
@@ -32,11 +34,11 @@ bool correctCheck(vector<int> A, vector<int> B) {
     return true;
 }
 
-vector<int> merge(vector<int> a, vector<int> b, int n, int m)
+vector<int> merge(vector<int> a, vector<int> b, vector<int> c, int n, int m)
 {
 
     int size = n + m;
-    vector<int> c(size);
+    c.resize(size);
 
     int i = 0, j = 0, k = 0;
 
@@ -73,7 +75,7 @@ vector<int> recursiveMerge(int numOfThreads, vector<vector<int>>& part) {
 
     if (numOfThreads == 2)
     {
-        return merge(part[0], part[1], part[0].size(), part[1].size());
+        return merge(part[0], part[1], c, part[0].size(), part[1].size());
     }
     else if (numOfThreads < 2) return part[0];
 
@@ -90,14 +92,17 @@ vector<int> recursiveMerge(int numOfThreads, vector<vector<int>>& part) {
     {
         int threadNum = omp_get_thread_num();
         int partNum = threadNum + 1;
-        sortedParts[threadNum] = merge(part[(partNum * 2) - 1], part[(partNum * 2) - 2], part[(partNum * 2) - 1].size(), part[(partNum * 2) - 2].size());
+        sortedParts[threadNum] = merge(part[(partNum * 2) - 1], part[(partNum * 2) - 2], c, part[(partNum * 2) - 1].size(), part[(partNum * 2) - 2].size());
     }
 
     return recursiveMerge(parts, sortedParts);
 }
 
+
+
 int main(int argc, char* argv[])
 {
+
     int k = 0;
     double startParallel;
     double endParallel;
@@ -107,7 +112,7 @@ int main(int argc, char* argv[])
     double linearTime;
     int numOfThreads;
     int size;
-
+    
     cout << "Enter array size:";
     cin >> size;
     cout << "Enter number of threads:";
@@ -149,6 +154,8 @@ int main(int argc, char* argv[])
     cout << "Linear time: " << linearTime << endl << endl;
     startParallel = omp_get_wtime();
 
+
+
 #pragma omp parallel for shared(threadVector)
     for (int i = 0; i < numOfThreads; i++)
         ShellSort(threadVector[i], partSize);
@@ -158,7 +165,7 @@ int main(int argc, char* argv[])
 
 
     mainFinalVector = recursiveMerge(numOfThreads, threadVector);
-    if (remain) mainFinalVector = merge(mainFinalVector, remainVector, mainFinalVector.size(), remain);
+    if (remain) mainFinalVector = merge(mainFinalVector, remainVector, c, mainFinalVector.size(), remain);
     endParallel = omp_get_wtime();
     parallelTime = endParallel - startParallel;
     cout << "Parallel time: " << parallelTime << endl << endl;
