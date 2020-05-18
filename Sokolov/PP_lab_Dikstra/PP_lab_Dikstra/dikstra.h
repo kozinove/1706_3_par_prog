@@ -6,16 +6,20 @@
 #include <algorithm>
 #include <functional>
 #include <vector>
+//#include "windows.h"
 
 #include <omp.h>
 #include <tbb/task_scheduler_init.h>
 #include <tbb/parallel_for.h>
 
+#include <thread>
+#include <mutex>
+
 using namespace tbb;
 
 #define dataType int
 #define NO_EBGE 0
-#define NUM_THREAD 2
+#define NUM_THREAD 4
 #define CHUNK 100
 
 
@@ -32,7 +36,6 @@ using std::greater;
 using std::make_heap;
 using std::pop_heap;
 
-
 //последовательный алгоритм Дейкстры на основе кучи
 int dikstra(dataType** Gragh, dataType* Rez, int size);
 
@@ -41,3 +44,6 @@ int dikstraMP(dataType** Gragh, dataType* Rez, int size);
 
 // алгоритм Дейкстры на основе кучи c использованием TBB
 int dikstraTBB(dataType** Gragh, dataType* Rez, int size);
+
+//// алгоритм Дейкстры на основе кучи c использованием Std Thread
+int dikstraStdThread(dataType** Gragh, dataType* Rez, int size);
